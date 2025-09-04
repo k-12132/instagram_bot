@@ -1,48 +1,29 @@
 import os
-import instaloader
 from telegram import Update
-from telegram.ext import Updater, CommandHandler, MessageHandler, Filters, CallbackContext
-from dotenv import load_dotenv
+from telegram.ext import Updater, CommandHandler, CallbackContext
+from flask import Flask
 
-# تحميل المتغيرات من .env
-load_dotenv()
-TOKEN = os.getenv("TELEGRAM_TOKEN")
+# اقرأ التوكن من متغير البيئة (Render يحفظه هناك)
+TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN", "")
 
-if not TOKEN:
-    raise ValueError("⚠️ ضع TELEGRAM_TOKEN في ملف .env")
+# إعداد Flask (مطلوب لتشغيل Render)
+app = Flask(__name__)
 
-# إعداد instaloader
-loader = instaloader.Instaloader()
+@app.route("/")
+def home():
+    return "Bot is running!"
 
-# دالة الترحيب
-def start(update: Update, context: CallbackContext):
-    update.message.reply_text("👋 أهلاً! أرسل لي رابط منشور أو ريل من إنستقرام وسأحاول تحميله لك.")
+def start(update: Update, context: CallbackContext) -> None:
+    update.message.reply_text("اهلا 👋 انا شغال 100%!")
 
-# دالة التحميل
-def download_instagram(update: Update, context: CallbackContext):
-    url = update.message.text.strip()
-    chat_id = update.message.chat_id
+def main():
+    updater = Updater(TELEGRAM_TOKEN, use_context=True)
+    dispatcher = updater.dispatcher
 
-    update.message.reply_text("⏳ جاري التحميل...")
+    dispatcher.add_handler(CommandHandler("start", start))
 
-    try:
-        shortcode = url.split("/")[-2]  # استخراج الـ shortcode من الرابط
-        post = instaloader.Post.from_shortcode(loader.context, shortcode)
+    updater.start_polling()
+    updater.idle()
 
-        if post.is_video:
-            video_url = post.video_url
-            context.bot.send_video(chat_id=chat_id, video=video_url, caption="✅ تم التحميل بنجاح")
-        else:
-            context.bot.send_photo(chat_id=chat_id, photo=post.url, caption="✅ تم التحميل بنجاح")
-
-    except Exception as e:
-        update.message.reply_text(f"❌ لم أستطع استخراج الوسائط. ({str(e)})")
-
-# تشغيل البوت
-updater = Updater(TOKEN, use_context=True)
-dp = updater.dispatcher
-dp.add_handler(CommandHandler("start", start))
-dp.add_handler(MessageHandler(Filters.text & ~Filters.command, download_instagram))
-
-updater.start_polling()
-updater.idle()
+if __name__ == "__main__":
+    main()
