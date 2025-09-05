@@ -3,7 +3,8 @@ import os
 import re
 import requests
 from telegram import Update
-from telegram.ext import Updater, CommandHandler, MessageHandler, Filters, CallbackContext
+from telegram.ext import Updater, CommandHandler, MessageHandler, CallbackContext
+from telegram.ext import filters  # تم تغيير Filters إلى filters
 from instaloader import Instaloader, Post
 
 # إعدادات التسجيل
@@ -17,14 +18,14 @@ logger = logging.getLogger(__name__)
 L = Instaloader()
 
 # دالة لمعالجة الأمر /start
-def start(update: Update, context: CallbackContext) -> None:
+async def start(update: Update, context: CallbackContext) -> None:
     user = update.effective_user
-    update.message.reply_markdown_v2(
+    await update.message.reply_markdown_v2(
         fr'مرحبًا {user.mention_markdown_v2()}\! أرسل لي رابط فيديو من إنستقرام وسأحاول تنزيله لك\.'
     )
 
 # دالة لمعالجة رسائل المستخدم
-def handle_message(update: Update, context: CallbackContext) -> None:
+async def handle_message(update: Update, context: CallbackContext) -> None:
     message_text = update.message.text
     chat_id = update.message.chat_id
     
@@ -34,7 +35,7 @@ def handle_message(update: Update, context: CallbackContext) -> None:
     
     if match:
         post_url = match.group(1)
-        update.message.reply_text("جاري محاولة تنزيل الفيديو...")
+        await update.message.reply_text("جاري محاولة تنزيل الفيديو...")
         
         try:
             # الحصول على المنشور من إنستقرام
@@ -61,7 +62,7 @@ def handle_message(update: Update, context: CallbackContext) -> None:
                 if video_file:
                     # إرسال الفيديو للمستخدم
                     with open(video_file, 'rb') as video:
-                        update.message.reply_video(
+                        await update.message.reply_video(
                             video=video, 
                             caption="تم التنزيل بنجاح!",
                             supports_streaming=True
@@ -71,18 +72,18 @@ def handle_message(update: Update, context: CallbackContext) -> None:
                     os.remove(video_file)
                     os.rmdir(temp_dir)
                 else:
-                    update.message.reply_text("لم يتم العثور على الفيديو بعد التنزيل.")
+                    await update.message.reply_text("لم يتم العثور على الفيديو بعد التنزيل.")
             else:
-                update.message.reply_text("المنشور المطلوب ليس فيديو.")
+                await update.message.reply_text("المنشور المطلوب ليس فيديو.")
                 
         except Exception as e:
             logger.error(f"Error: {e}")
-            update.message.reply_text("عذرًا، حدث خطأ أثناء محاولة تنزيل الفيديو. قد يكون الرابط غير صحيح أو المحتوى خاص.")
+            await update.message.reply_text("عذرًا، حدث خطأ أثناء محاولة تنزيل الفيديو. قد يكون الرابط غير صحيح أو المحتوى خاص.")
     else:
-        update.message.reply_text("يرجى إرسال رابط فيديو إنستقرام صحيح. مثال: https://www.instagram.com/reel/CrY2HZtD/")
+        await update.message.reply_text("يرجى إرسال رابط فيديو إنستقرام صحيح. مثال: https://www.instagram.com/reel/CrY2HZtD/")
 
 # دالة لمعالجة الأخطاء
-def error(update: Update, context: CallbackContext):
+async def error(update: Update, context: CallbackContext):
     logger.warning('Update "%s" caused error "%s"', update, context.error)
 
 # الدالة الرئيسية
@@ -94,19 +95,17 @@ def main():
         logger.error("لم يتم تعيين رمز البوت. يرجى تعيين متغير البيئة BOT_TOKEN.")
         return
     
-    # إنشاء Updater وناقل الأوامر
-    updater = Updater(TOKEN, use_context=True)
-    dispatcher = updater.dispatcher
+    # إنشاء Application بدلاً من Updater (في الإصدارات الجديدة)
+    from telegram.ext import Application
+    application = Application.builder().token(TOKEN).build()
 
     # إضافة معالجات الأوامر
-    dispatcher.add_handler(CommandHandler("start", start))
-    dispatcher.add_handler(MessageHandler(Filters.text & ~Filters.command, handle_message))
-    dispatcher.add_error_handler(error)
-
+    application.add_handler(CommandHandler("start", start))
+    application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
+    
     # بدء البوت
-    updater.start_polling()
+    application.run_polling()
     logger.info("بدأ البوت في الاستماع للرسائل...")
-    updater.idle()
 
 if __name__ == '__main__':
     main()
