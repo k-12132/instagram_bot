@@ -1,62 +1,60 @@
 import os
 import instaloader
 from telegram import Update
-from telegram.ext import (
-    Application,
-    CommandHandler,
-    MessageHandler,
-    ContextTypes,
-    filters,
-)
+from telegram.ext import Application, CommandHandler, ContextTypes
 
-# تحميل الفيديو من انستقرام
-def download_instagram_video(url: str, filename: str) -> str:
-    loader = instaloader.Instaloader()
-    try:
-        post = instaloader.Post.from_shortcode(loader.context, url.split("/")[-2])
-        loader.download_post(post, target=filename)
-        return filename
-    except Exception as e:
-        return str(e)
+# ---------------------------
+# وظائف البوت
+# ---------------------------
 
-# أمر /start
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text("أرسل رابط فيديو من انستقرام وسأقوم بتحميله لك 📥")
+    await update.message.reply_text("مرحباً! البوت يعمل ✅")
 
-# التعامل مع الروابط
-async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    text = update.message.text.strip()
-    if "instagram.com" in text:
-        await update.message.reply_text("جاري التحميل ⏳...")
+async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await update.message.reply_text("يمكنك إرسال رابط حساب انستجرام لتحميل الستوري.")
 
-        filename = "downloaded_post"
-        result = download_instagram_video(text, filename)
+async def download_story(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if not context.args:
+        await update.message.reply_text("أرسل رابط الحساب بعد الأمر، مثلا: /story username")
+        return
 
-        if os.path.exists(filename):
-            for file in os.listdir(filename):
-                if file.endswith(".mp4"):
-                    with open(os.path.join(filename, file), "rb") as video:
-                        await update.message.reply_video(video)
-            # تنظيف بعد الارسال
-            for file in os.listdir(filename):
-                os.remove(os.path.join(filename, file))
-            os.rmdir(filename)
+    username = context.args[0]
+    loader = instaloader.Instaloader()
+    
+    try:
+        profile = instaloader.Profile.from_username(loader.context, username)
+        stories = loader.get_stories(userids=[profile.userid])
+        
+        count = 0
+        for story in stories:
+            for item in story.get_items():
+                loader.download_storyitem(item, f"downloads/{username}")
+                count += 1
+        
+        if count == 0:
+            await update.message.reply_text(f"لا توجد ستوريات لـ {username}.")
         else:
-            await update.message.reply_text(f"خطأ: {result}")
-    else:
-        await update.message.reply_text("أرسل رابط فيديو من انستقرام فقط 📎")
+            await update.message.reply_text(f"تم تحميل {count} ستوري من {username}.")
+    except Exception as e:
+        await update.message.reply_text(f"حدث خطأ: {e}")
+
+# ---------------------------
+# دالة البداية
+# ---------------------------
 
 def main():
-    token = os.getenv("BOT_TOKEN")
+    token = os.environ.get("BOT_TOKEN")
     if not token:
         raise ValueError("يجب وضع التوكن في متغير البيئة BOT_TOKEN")
 
     app = Application.builder().token(token).build()
 
+    # إضافة الأوامر
     app.add_handler(CommandHandler("start", start))
-    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
+    app.add_handler(CommandHandler("help", help_command))
+    app.add_handler(CommandHandler("story", download_story))
 
-    print("🚀 البوت شغال...")
+    # تشغيل البوت
     app.run_polling()
 
 if __name__ == "__main__":
