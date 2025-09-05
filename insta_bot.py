@@ -1,36 +1,50 @@
 import os
-#import imghdr
+import logging
+from dotenv import load_dotenv
+from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, ContextTypes, filters
+import requests
 import filetype
 
-#kind = filetype.guess("path/to/file.jpg")
-if kind is not None:
-    print(kind.mime)
+# تحميل متغيرات البيئة
+load_dotenv()
 
-from telegram import Update
-from telegram.ext import Updater, CommandHandler, CallbackContext
-from flask import Flask
+# إعداد التوكن من ملف .env
+BOT_TOKEN = os.getenv("BOT_TOKEN")
 
-# اقرأ التوكن من متغير البيئة (Render يحفظه هناك)
-TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN", "")
+# إعداد اللوقز
+logging.basicConfig(
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+    level=logging.INFO
+)
 
-# إعداد Flask (مطلوب لتشغيل Render)
-app = Flask(__name__)
+# دالة البدء
+async def start(update, context: ContextTypes.DEFAULT_TYPE):
+    await update.message.reply_text("أهلاً بك! أرسل لي رابط وسأحمله لك 🚀")
 
-@app.route("/")
-def home():
-    return "Bot is running!"
+# دالة تحميل (مثال مبسط)
+async def download(update, context: ContextTypes.DEFAULT_TYPE):
+    url = update.message.text.strip()
+    await update.message.reply_text(f"جاري التحميل من: {url}")
 
-def start(update: Update, context: CallbackContext) -> None:
-    update.message.reply_text("اهلا 👋 انا شغال 100%!")
+    # هنا تقدر تستخدم requests لتحميل المحتوى أو أي مكتبة ثانية
+    try:
+        r = requests.get(url, stream=True, timeout=10)
+        if r.status_code == 200:
+            kind = filetype.guess(r.content)
+            if kind:
+                await update.message.reply_text(f"الملف نوعه: {kind.mime}")
+            else:
+                await update.message.reply_text("ما قدرت أحدد نوع الملف.")
+        else:
+            await update.message.reply_text("الرابط غير صالح ❌")
+    except Exception as e:
+        await update.message.reply_text(f"حدث خطأ: {e}")
 
-def main():
-    updater = Updater(TELEGRAM_TOKEN, use_context=True)
-    dispatcher = updater.dispatcher
-
-    dispatcher.add_handler(CommandHandler("start", start))
-
-    updater.start_polling()
-    updater.idle()
-
+# تشغيل البوت
 if __name__ == "__main__":
-    main()
+    app = ApplicationBuilder().token(BOT_TOKEN).build()
+
+    app.add_handler(CommandHandler("start", start))
+    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, download))
+
+    app.run_polling()
