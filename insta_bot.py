@@ -2,40 +2,35 @@ import os
 import re
 import json
 import threading
-import logging
 from datetime import datetime
+
 import pytz
 import requests
-
 from instaloader import Instaloader, Post
 from dotenv import load_dotenv
-
-from telegram import ChatAction
-from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, filters, ContextTypes
-
-# ----------- إعدادات -----------
+from telegram import Update, constants
+from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, ContextTypes, filters
 
 TASHKENT_TZ = pytz.timezone("Asia/Tashkent")
+
+# Load environment variables
 load_dotenv()
 
+# Telegram Bot Token
 TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
+
+# Instagram credentials
 USERNAME = os.getenv("INSTAGRAM_USERNAME")
 PASSWORD = os.getenv("INSTAGRAM_PASSWORD")
 
+# File paths
 USERS_LOG_FILE = "users.log"
 ADMIN_FILE = "admin.json"
 
-logging.basicConfig(
-    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
-    level=logging.INFO
-)
-logger = logging.getLogger(__name__)
-
+# Instaloader setup
 loader = Instaloader()
 SESSION_FILE = f"{os.getcwd()}/session-{USERNAME}"
 session_lock = threading.Lock()
-
-# ----------- جلسة إنستغرام -----------
 
 def load_or_create_session():
     with session_lock:
@@ -47,8 +42,7 @@ def load_or_create_session():
 
 load_or_create_session()
 
-# ----------- إدارة الأدمن -----------
-
+# Admin functions
 def get_admin():
     if os.path.exists(ADMIN_FILE):
         with open(ADMIN_FILE, "r") as file:
@@ -60,12 +54,10 @@ def set_admin(user_id):
         with open(ADMIN_FILE, "w") as file:
             json.dump({"admin_id": user_id}, file)
 
-# ----------- تسجيل المستخدم -----------
-
+# User logging
 def log_user_data(user):
     server_time = datetime.now()
     tashkent_time = server_time.astimezone(TASHKENT_TZ)
-
     user_data = {
         "user_id": user.id,
         "username": user.username,
@@ -89,16 +81,13 @@ def log_user_data(user):
 
         with open(USERS_LOG_FILE, "w") as file:
             json.dump(users, file, indent=4)
-
     except Exception as e:
-        logger.error(f"Error logging user data: {e}")
+        print(f"Error logging user data: {e}")
 
-# ----------- أوامر الأدمن -----------
-
-async def list_users(update, context: ContextTypes.DEFAULT_TYPE):
+# List users command
+async def list_users(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
     admin_id = get_admin()
-
     if user.id != admin_id:
         await update.message.reply_text("❌ You don't have permission to use this command.")
         return
@@ -107,7 +96,6 @@ async def list_users(update, context: ContextTypes.DEFAULT_TYPE):
         if os.path.exists(USERS_LOG_FILE):
             with open(USERS_LOG_FILE, "r") as file:
                 users = json.load(file)
-
             if not users:
                 await update.message.reply_text("No users have used the bot yet.")
                 return
@@ -117,9 +105,7 @@ async def list_users(update, context: ContextTypes.DEFAULT_TYPE):
                 1 for u in users if datetime.strptime(u['timestamp'], "%Y-%m-%d %H:%M:%S").date() == datetime.now(TASHKENT_TZ).date()
             )
 
-            response = f"📊 Total users: {total_users}\n"
-            response += f"🌍 Users who used today: {today_users}\n\n"
-            response += "📋 List of users:\n\n"
+            response = f"📊 Total users: {total_users}\n🌍 Users today: {today_users}\n\n📋 Users list:\n"
             for u in users:
                 response += (
                     f"👤 User ID: {u['user_id']}\n"
@@ -131,11 +117,10 @@ async def list_users(update, context: ContextTypes.DEFAULT_TYPE):
         else:
             await update.message.reply_text("No user log file found. No users have used the bot yet.")
     except Exception as e:
-        logger.error(f"Error reading user log file: {e}")
+        print(f"Error reading user log file: {e}")
         await update.message.reply_text("⚠️ An error occurred while retrieving user data.")
 
-# ----------- وظائف التحميل -----------
-
+# Instagram helper functions
 def extract_shortcode(instagram_post):
     match = re.search(r"instagram\.com/(?:p|reel|tv)/([^/?#&]+)", instagram_post)
     return match.group(1) if match else None
@@ -147,17 +132,15 @@ def fetch_instagram_data(instagram_post):
     shortcode = extract_shortcode(instagram_post)
     if not shortcode:
         return None
-
     try:
         post = Post.from_shortcode(loader.context, shortcode)
         return post.video_url if post.is_video else post.url
     except Exception as e:
-        logger.error(f"Error fetching Instagram data: {e}")
+        print(f"Error fetching Instagram data: {e}")
         return None
 
-# ----------- أوامر المستخدم -----------
-
-async def start(update, context: ContextTypes.DEFAULT_TYPE):
+# /start command
+async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
     log_user_data(user)
 
@@ -172,7 +155,8 @@ async def start(update, context: ContextTypes.DEFAULT_TYPE):
         "Happy downloading! 🎉"
     )
 
-async def process_download(update, context: ContextTypes.DEFAULT_TYPE):
+# Download handler
+async def download(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
     log_user_data(user)
 
@@ -181,7 +165,7 @@ async def process_download(update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("❌ Invalid Instagram URL. Please send a valid post, Reel, or IGTV link.")
         return
 
-    await update.message.chat.send_action(action=ChatAction.TYPING)
+    await update.message.chat.send_action(action=constants.ChatAction.TYPING)
     progress_message = await update.message.reply_text("⏳ Fetching your media...")
 
     media_url = fetch_instagram_data(instagram_post)
@@ -205,17 +189,13 @@ async def process_download(update, context: ContextTypes.DEFAULT_TYPE):
 
         await progress_message.delete()
     except Exception as e:
-        logger.error(f"Error sending media: {e}")
+        print(f"Error sending media: {e}")
         await progress_message.edit_text("❌ Failed to send media. Please try again later.")
     finally:
         if os.path.exists(file_name):
             os.remove(file_name)
 
-def download(update, context: ContextTypes.DEFAULT_TYPE):
-    threading.Thread(target=lambda: context.application.create_task(process_download(update, context))).start()
-
-# ----------- تشغيل البوت -----------
-
+# Main function
 def main():
     app = ApplicationBuilder().token(TOKEN).build()
 
@@ -223,7 +203,7 @@ def main():
     app.add_handler(CommandHandler("users", list_users))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, download))
 
-    logger.info("Bot started...")
+    print("Bot is running...")
     app.run_polling()
 
 if __name__ == "__main__":
