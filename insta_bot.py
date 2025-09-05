@@ -2,7 +2,7 @@ import os
 #import imghdr
 import filetype
 
-kind = filetype.guess("path/to/file.jpg")
+#kind = filetype.guess("path/to/file.jpg")
 if kind is not None:
     print(kind.mime)
 
