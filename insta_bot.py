@@ -1,5 +1,11 @@
 import os
 #import imghdr
+import filetype
+
+kind = filetype.guess("path/to/file.jpg")
+if kind is not None:
+    print(kind.mime)
+
 from telegram import Update
 from telegram.ext import Updater, CommandHandler, CallbackContext
 from flask import Flask
