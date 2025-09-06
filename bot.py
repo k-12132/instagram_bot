@@ -3,66 +3,34 @@ import yt_dlp
 from telegram import Update
 from telegram.ext import Application, CommandHandler, MessageHandler, ContextTypes, filters
 
-# ✅ حل مشكلة imghdr في بعض البيئات
-try:
-    import imghdr
-except ModuleNotFoundError:
-    import types, sys
-    sys.modules['imghdr'] = types.ModuleType('imghdr')
-
-# التوكن
 TOKEN = os.environ.get("BOT_TOKEN")
+if not TOKEN:
+    raise ValueError("❌ BOT_TOKEN غير موجود في متغيرات البيئة")
 
-# إعدادات Webhook
-PORT = int(os.environ.get("PORT", 8443))
-HOST = "0.0.0.0"
-WEBHOOK_URL = f"https://{os.environ['RENDER_EXTERNAL_HOSTNAME']}/{TOKEN}"
-
-# أوامر البوت
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text("بوت يوتيوب جاهز ✅\nأرسل رابط فيديو لتحميله.")
+    await update.message.reply_text("👋 أهلاً! أرسل رابط فيديو من تيك توك أو يوتيوب.")
 
-# تحميل الفيديو
-async def download_youtube(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def download_video(update: Update, context: ContextTypes.DEFAULT_TYPE):
     url = update.message.text.strip()
-    if not url.startswith("http"):
-        await update.message.reply_text("الرجاء إرسال رابط فيديو صحيح.")
-        return
-
-    await update.message.reply_text("جاري التحميل ... ⏳")
-
-    ydl_opts = {
-        "format": "best",
-        "outtmpl": "downloads/%(title)s.%(ext)s",
-        "noplaylist": True,
-    }
+    ydl_opts = {"format": "best", "outtmpl": "video.%(ext)s"}
 
     try:
-        os.makedirs("downloads", exist_ok=True)
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-            info = ydl.extract_info(url)
-            filename = ydl.prepare_filename(info)
+            info = ydl.extract_info(url, download=True)
+            file_path = ydl.prepare_filename(info)
 
-        # إرسال الفيديو للمستخدم (إذا الحجم أقل من 50MB)
-        if os.path.getsize(filename) < 50 * 1024 * 1024:
-            await update.message.reply_video(video=open(filename, "rb"))
-        else:
-            await update.message.reply_text(f"تم تحميل الفيديو: {filename}\nلكن الحجم أكبر من 50MB، لا يمكن إرساله مباشرة.")
+        await update.message.reply_video(video=open(file_path, "rb"))
+        os.remove(file_path)
+
     except Exception as e:
-        await update.message.reply_text(f"حدث خطأ: {str(e)}")
+        await update.message.reply_text(f"❌ خطأ: {str(e)}")
 
-# إنشاء التطبيق
-app = Application.builder().token(TOKEN).build()
+def main():
+    app = Application.builder().token(TOKEN).build()
+    app.add_handler(CommandHandler("start", start))
+    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, download_video))
+    print("✅ البوت شغال...")
+    app.run_polling()
 
-# إضافة Handlers
-app.add_handler(CommandHandler("start", start))
-app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, download_youtube))
-
-# تشغيل Webhook
 if __name__ == "__main__":
-    app.run_webhook(
-        listen=HOST,
-        port=PORT,
-        url_path=TOKEN,
-        webhook_url=WEBHOOK_URL
-    )
+    main()
