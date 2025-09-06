@@ -1,26 +1,34 @@
 import os
-from telegram.ext import Updater, CommandHandler
+from telegram import Update
+from telegram.ext import Application, CommandHandler, MessageHandler, ContextTypes, filters
 
-# جلب التوكن من متغيرات البيئة
+# التوكن
 TOKEN = os.environ.get("BOT_TOKEN")
-if not TOKEN:
-    raise ValueError("❌ لم يتم العثور على BOT_TOKEN في متغيرات البيئة")
 
-# أمر /start
-def start(update, context):
-    update.message.reply_text("✅ البوت شغال 100% على Render (إصدار 13.15)!")
+# إعدادات Webhook
+PORT = int(os.environ.get("PORT", 8443))
+HOST = "0.0.0.0"
+WEBHOOK_URL = f"https://{os.environ['RENDER_EXTERNAL_HOSTNAME']}/{TOKEN}"
 
-def main():
-    # إنشاء Updater
-    updater = Updater(TOKEN, use_context=True)
-    dp = updater.dispatcher
+# أوامر البوت
+async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await update.message.reply_text("بوتك يعمل ✅")
 
-    # إضافة الأوامر
-    dp.add_handler(CommandHandler("start", start))
+async def echo(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await update.message.reply_text(f"لقد أرسلت: {update.message.text}")
 
-    # تشغيل البوت (Polling)
-    updater.start_polling()
-    updater.idle()
+# إنشاء التطبيق
+app = Application.builder().token(TOKEN).build()
 
+# إضافة Handlers
+app.add_handler(CommandHandler("start", start))
+app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, echo))
+
+# تشغيل Webhook
 if __name__ == "__main__":
-    main()
+    app.run_webhook(
+        listen=HOST,
+        port=PORT,
+        url_path=TOKEN,
+        webhook_url=WEBHOOK_URL
+    )
