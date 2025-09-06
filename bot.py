@@ -1,6 +1,6 @@
 import os
 from telegram import Update
-from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes
+from telegram.ext import Application, CommandHandler, ContextTypes, MessageHandler, filters
 
 TOKEN = os.environ["BOT_TOKEN"]
 PORT = int(os.environ.get("PORT", 8443))
@@ -19,7 +19,7 @@ if __name__ == "__main__":
     app.add_handler(CommandHandler("start", start))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, echo))
 
-    # تشغيل البوت على Webhook
+    # تشغيل Webhook
     app.run_webhook(
         listen=HOST,
         port=PORT,
