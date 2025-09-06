@@ -8,44 +8,38 @@ TOKEN = os.environ.get("BOT_TOKEN")
 if not TOKEN:
     raise ValueError("❌ لم يتم العثور على BOT_TOKEN في متغيرات البيئة")
 
-# مسار ملف الكوكيز
-COOKIES_FILE = "cookies.txt"  # ضع هنا مسار ملف الكوكيز الخاص بك
-
-# إعدادات yt-dlp
-ydl_opts = {
+# خيارات yt-dlp
+YDL_OPTIONS = {
+    "outtmpl": "%(title)s.%(ext)s",  # اسم الملف
     "format": "best",
-    "outtmpl": "%(title)s.%(ext)s",
-    "cookiefile": COOKIES_FILE,  # استخدام الكوكيز
-    "noplaylist": True
+    "cookiefile": "cookies.txt"      # ملف الكوكيز
 }
 
 # أمر /start
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text("✅ البوت شغال 100%! أرسل رابط Instagram أو YouTube لتحميل الفيديو.")
+    await update.message.reply_text("✅ البوت شغال 100% على Render!")
 
-# أمر /download
+# أمر /download <رابط>
 async def download(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if not context.args:
+    if len(context.args) == 0:
         await update.message.reply_text("❌ أرسل رابط الفيديو بعد الأمر.")
         return
 
     url = context.args[0]
-    msg = await update.message.reply_text("⏳ جاري تنزيل الفيديو...")
+    await update.message.reply_text(f"⏳ جاري تنزيل الفيديو من: {url}")
 
     try:
-        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+        with yt_dlp.YoutubeDL(YDL_OPTIONS) as ydl:
             info = ydl.extract_info(url, download=True)
             filename = ydl.prepare_filename(info)
-
         await update.message.reply_text(f"✅ تم تنزيل الفيديو: {filename}")
     except Exception as e:
-        await update.message.reply_text(f"❌ حدث خطأ أثناء التنزيل:\n{e}")
+        await update.message.reply_text(f"❌ حدث خطأ: {e}")
 
 def main():
     app = Application.builder().token(TOKEN).build()
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CommandHandler("download", download))
-
     app.run_polling()
 
 if __name__ == "__main__":
