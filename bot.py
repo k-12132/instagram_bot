@@ -1,46 +1,38 @@
-import os
 from telegram import Update
-from telegram.ext import Application, CommandHandler, ContextTypes
-import yt_dlp
+from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes, MessageHandler, filters
+import os
 
-# جلب التوكن من متغير البيئة
-TOKEN = os.environ.get("BOT_TOKEN")
-if not TOKEN:
-    raise ValueError("❌ لم يتم العثور على BOT_TOKEN في متغيرات البيئة")
+# التوكن حق البوت
+BOT_TOKEN = os.environ.get("BOT_TOKEN")
 
-# خيارات yt-dlp
-YDL_OPTIONS = {
-    "outtmpl": "%(title)s.%(ext)s",  # اسم الملف
-    "format": "best",
-    "cookiefile": "cookies.txt"      # ملف الكوكيز
-}
-
-# أمر /start
+# تعريف أوامر البوت
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text("✅ البوت شغال 100% على Render!")
+    await update.message.reply_text("مرحبًا! أنا بوتك جاهز للعمل.")
 
-# أمر /download <رابط>
-async def download(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if len(context.args) == 0:
-        await update.message.reply_text("❌ أرسل رابط الفيديو بعد الأمر.")
-        return
-
-    url = context.args[0]
-    await update.message.reply_text(f"⏳ جاري تنزيل الفيديو من: {url}")
-
-    try:
-        with yt_dlp.YoutubeDL(YDL_OPTIONS) as ydl:
-            info = ydl.extract_info(url, download=True)
-            filename = ydl.prepare_filename(info)
-        await update.message.reply_text(f"✅ تم تنزيل الفيديو: {filename}")
-    except Exception as e:
-        await update.message.reply_text(f"❌ حدث خطأ: {e}")
-
-def main():
-    app = Application.builder().token(TOKEN).build()
-    app.add_handler(CommandHandler("start", start))
-    app.add_handler(CommandHandler("download", download))
-    app.run_polling()
+# مثال على الرد على أي رسالة نصية
+async def echo(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await update.message.reply_text(f"لقد أرسلت: {update.message.text}")
 
 if __name__ == "__main__":
-    main()
+    app = ApplicationBuilder().token(BOT_TOKEN).build()
+
+    # إضافة الأوامر
+    app.add_handler(CommandHandler("start", start))
+    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, echo))
+
+    # Webhook setup
+    # هذا الرابط يكون رابط الخدمة على Render + مسار endpoint
+    WEBHOOK_URL = f"https://<اسم-خدمتك>.onrender.com/{BOT_TOKEN}"
+
+    # إزالة أي webhook قديم
+    import asyncio
+    asyncio.run(app.bot.delete_webhook())
+    
+    # ضبط webhook
+    asyncio.run(app.bot.set_webhook(WEBHOOK_URL))
+
+    # تشغيل الخدمة
+    # على Render نستخدم run_polling=False لأنه webhook
+    app.run_webhook(listen="0.0.0.0",
+                    port=int(os.environ.get("PORT", 10000)),
+                    webhook_path=f"/{BOT_TOKEN}")
