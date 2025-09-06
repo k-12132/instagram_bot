@@ -1,35 +1,51 @@
 import os
-import yt_dlp
 from telegram import Update
-from telegram.ext import Application, CommandHandler, MessageHandler, ContextTypes, filters
+from telegram.ext import Application, CommandHandler, ContextTypes
+import yt_dlp
 
+# جلب التوكن من متغير البيئة
 TOKEN = os.environ.get("BOT_TOKEN")
 if not TOKEN:
-    raise ValueError("❌ BOT_TOKEN غير موجود في متغيرات البيئة")
+    raise ValueError("❌ لم يتم العثور على BOT_TOKEN في متغيرات البيئة")
 
+# مسار ملف الكوكيز
+COOKIES_FILE = "cookies.txt"  # ضع هنا مسار ملف الكوكيز الخاص بك
+
+# إعدادات yt-dlp
+ydl_opts = {
+    "format": "best",
+    "outtmpl": "%(title)s.%(ext)s",
+    "cookiefile": COOKIES_FILE,  # استخدام الكوكيز
+    "noplaylist": True
+}
+
+# أمر /start
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text("👋 أهلاً! أرسل رابط فيديو من تيك توك أو يوتيوب.")
+    await update.message.reply_text("✅ البوت شغال 100%! أرسل رابط Instagram أو YouTube لتحميل الفيديو.")
 
-async def download_video(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    url = update.message.text.strip()
-    ydl_opts = {"format": "best", "outtmpl": "video.%(ext)s"}
+# أمر /download
+async def download(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if not context.args:
+        await update.message.reply_text("❌ أرسل رابط الفيديو بعد الأمر.")
+        return
+
+    url = context.args[0]
+    msg = await update.message.reply_text("⏳ جاري تنزيل الفيديو...")
 
     try:
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             info = ydl.extract_info(url, download=True)
-            file_path = ydl.prepare_filename(info)
+            filename = ydl.prepare_filename(info)
 
-        await update.message.reply_video(video=open(file_path, "rb"))
-        os.remove(file_path)
-
+        await update.message.reply_text(f"✅ تم تنزيل الفيديو: {filename}")
     except Exception as e:
-        await update.message.reply_text(f"❌ خطأ: {str(e)}")
+        await update.message.reply_text(f"❌ حدث خطأ أثناء التنزيل:\n{e}")
 
 def main():
     app = Application.builder().token(TOKEN).build()
     app.add_handler(CommandHandler("start", start))
-    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, download_video))
-    print("✅ البوت شغال...")
+    app.add_handler(CommandHandler("download", download))
+
     app.run_polling()
 
 if __name__ == "__main__":
