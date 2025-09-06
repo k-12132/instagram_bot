@@ -1,20 +1,15 @@
-# اجبر Render على Python 3.11
-FROM python:3.11-slim
+# استخدام بايثون 3.13
+FROM python:3.13-slim
 
-ENV PYTHONDONTWRITEBYTECODE=1
-ENV PYTHONUNBUFFERED=1
-
+# تعيين مجلد العمل
 WORKDIR /app
 
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    gcc \
-    libmagic1 \
- && rm -rf /var/lib/apt/lists/*
-
+# نسخ الملفات المطلوبة
 COPY requirements.txt .
+COPY bot.py .
 
+# تثبيت التبعيات
 RUN pip install --no-cache-dir -r requirements.txt
 
-COPY . .
-
+# تشغيل البوت
 CMD ["python", "bot.py"]
