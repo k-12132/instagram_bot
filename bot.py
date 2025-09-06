@@ -2,6 +2,13 @@ import os
 from telegram import Update
 from telegram.ext import Application, CommandHandler, MessageHandler, ContextTypes, filters
 
+# ✅ حل مشكلة imghdr في بعض البيئات القديمة
+try:
+    import imghdr
+except ModuleNotFoundError:
+    import types, sys
+    sys.modules['imghdr'] = types.ModuleType('imghdr')
+
 # التوكن
 TOKEN = os.environ.get("BOT_TOKEN")
 
