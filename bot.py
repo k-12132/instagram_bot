@@ -3,19 +3,23 @@ from telegram import Update
 from telegram.ext import Application, CommandHandler, ContextTypes
 
 # جلب التوكن من متغير البيئة
-token = os.environ.get("BOT_TOKEN")
-if not token:
-    raise ValueError("يجب وضع التوكن في متغير البيئة BOT_TOKEN")
+TOKEN = os.environ.get("BOT_TOKEN")
+if not TOKEN:
+    raise ValueError("❌ لم يتم العثور على BOT_TOKEN في متغيرات البيئة")
 
-# أمر start
+# أمر /start
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text("مرحبا! البوت يعمل بنجاح.")
+    await update.message.reply_text("✅ البوت شغال 100% على Render!")
 
-# الدالة الرئيسية لتشغيل البوت
 def main():
-    app = Application.builder().token(token).build()
+    # مافي Updater نهائياً
+    app = Application.builder().token(TOKEN).build()
+
+    # إضافة الأوامر
     app.add_handler(CommandHandler("start", start))
-    app.run_polling()  # تشغيل البوت
+
+    # تشغيل البوت
+    app.run_polling()
 
 if __name__ == "__main__":
     main()
