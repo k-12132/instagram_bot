@@ -1,8 +1,9 @@
 import os
+import yt_dlp
 from telegram import Update
 from telegram.ext import Application, CommandHandler, MessageHandler, ContextTypes, filters
 
-# ✅ حل مشكلة imghdr في بعض البيئات القديمة
+# ✅ حل مشكلة imghdr في بعض البيئات
 try:
     import imghdr
 except ModuleNotFoundError:
@@ -19,17 +20,43 @@ WEBHOOK_URL = f"https://{os.environ['RENDER_EXTERNAL_HOSTNAME']}/{TOKEN}"
 
 # أوامر البوت
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text("بوتك يعمل ✅")
+    await update.message.reply_text("بوت يوتيوب جاهز ✅\nأرسل رابط فيديو لتحميله.")
 
-async def echo(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text(f"لقد أرسلت: {update.message.text}")
+# تحميل الفيديو
+async def download_youtube(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    url = update.message.text.strip()
+    if not url.startswith("http"):
+        await update.message.reply_text("الرجاء إرسال رابط فيديو صحيح.")
+        return
+
+    await update.message.reply_text("جاري التحميل ... ⏳")
+
+    ydl_opts = {
+        "format": "best",
+        "outtmpl": "downloads/%(title)s.%(ext)s",
+        "noplaylist": True,
+    }
+
+    try:
+        os.makedirs("downloads", exist_ok=True)
+        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+            info = ydl.extract_info(url)
+            filename = ydl.prepare_filename(info)
+
+        # إرسال الفيديو للمستخدم (إذا الحجم أقل من 50MB)
+        if os.path.getsize(filename) < 50 * 1024 * 1024:
+            await update.message.reply_video(video=open(filename, "rb"))
+        else:
+            await update.message.reply_text(f"تم تحميل الفيديو: {filename}\nلكن الحجم أكبر من 50MB، لا يمكن إرساله مباشرة.")
+    except Exception as e:
+        await update.message.reply_text(f"حدث خطأ: {str(e)}")
 
 # إنشاء التطبيق
 app = Application.builder().token(TOKEN).build()
 
 # إضافة Handlers
 app.add_handler(CommandHandler("start", start))
-app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, echo))
+app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, download_youtube))
 
 # تشغيل Webhook
 if __name__ == "__main__":
