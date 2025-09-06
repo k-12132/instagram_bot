@@ -1,5 +1,5 @@
 python-telegram-bot==20.7
 requests
+httpx==0.25.2
 instaloader
 python-dotenv
-httpx==0.25.2
