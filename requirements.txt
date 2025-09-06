@@ -6,4 +6,3 @@ tzlocal
 APScheduler==3.6.3
 cachetools==4.2.2
 six
-imghdr-py
