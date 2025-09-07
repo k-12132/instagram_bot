@@ -78,8 +78,42 @@ async def download_video(update: Update, context: ContextTypes.DEFAULT_TYPE):
     except yt_dlp.utils.DownloadError as e:
         await update.message.reply_text(
             f"❌ حدث خطأ أثناء التحميل.\n"
-            f"السبب غالبًا أن الرابط غير عام أو الفيديو خاص. \n"
+            f"السبب غالبًا أن الرابط غير عام أو الفيديو خاص.\n"
             f"تفاصيل: {str(e)}"
         )
     except Exception as e:
-        await update.message.reply_text(f"❌_
+        await update.message.reply_text(f"❌ خطأ غير متوقع: {str(e)}")
+
+# أمر لعرض الملفات على السيرفر
+async def list_files(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    files = os.listdir(DOWNLOAD_DIR)
+    if files:
+        msg = "📂 الملفات الموجودة على السيرفر:\n"
+        for f in files:
+            path = os.path.join(DOWNLOAD_DIR, f)
+            size_mb = os.path.getsize(path) / (1024*1024)
+            msg += f"{f} — {size_mb:.2f}MB\n"
+    else:
+        msg = "لا توجد ملفات حالياً."
+    await update.message.reply_text(msg)
+
+# --- إنشاء تطبيق البوت ---
+bot_app = Application.builder().token(TOKEN).build()
+bot_app.add_handler(CommandHandler("start", start))
+bot_app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, download_video))
+bot_app.add_handler(CommandHandler("files", list_files))
+
+# --- تشغيل البوت مع Starlette ---
+if __name__ == "__main__":
+
+    def run_web():
+        uvicorn.run(web_app, host=HOST, port=PORT)
+
+    Thread(target=run_web, daemon=True).start()
+
+    bot_app.run_webhook(
+        listen=HOST,
+        port=PORT,
+        url_path=TOKEN,
+        webhook_url=f"https://{EXTERNAL_HOSTNAME}/{TOKEN}"
+    )
