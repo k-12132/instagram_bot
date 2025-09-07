@@ -16,9 +16,12 @@ HOST = "0.0.0.0"
 WEBHOOK_URL = f"https://{os.environ['RENDER_EXTERNAL_HOSTNAME']}/{TOKEN}"
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text("بوت يوتيوب جاهز ✅\nأرسل رابط فيديو لتحميله.")
+    await update.message.reply_text(
+        "بوت التحميل جاهز ✅\n"
+        "أرسل رابط فيديو من: تيك توك، إنستقرام، أو يوتيوب."
+    )
 
-async def download_youtube(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def download_video(update: Update, context: ContextTypes.DEFAULT_TYPE):
     url = update.message.text.strip()
     if not url.startswith("http"):
         await update.message.reply_text("الرجاء إرسال رابط فيديو صحيح.")
@@ -26,6 +29,7 @@ async def download_youtube(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     await update.message.reply_text("جاري التحميل ... ⏳")
 
+    # إعدادات yt-dlp
     ydl_opts = {
         "format": "best",
         "outtmpl": "downloads/%(title)s.%(ext)s",
@@ -38,16 +42,21 @@ async def download_youtube(update: Update, context: ContextTypes.DEFAULT_TYPE):
             info = ydl.extract_info(url)
             filename = ydl.prepare_filename(info)
 
+        # إرسال الفيديو إذا أقل من 50MB
         if os.path.getsize(filename) < 50 * 1024 * 1024:
             await update.message.reply_video(video=open(filename, "rb"))
         else:
-            await update.message.reply_text(f"تم تحميل الفيديو: {filename}\nلكن الحجم أكبر من 50MB، لا يمكن إرساله مباشرة.")
+            await update.message.reply_text(
+                f"تم تحميل الفيديو: {filename}\n"
+                "لكن الحجم أكبر من 50MB، لا يمكن إرساله مباشرة."
+            )
     except Exception as e:
-        await update.message.reply_text(f"حدث خطأ: {str(e)}")
+        await update.message.reply_text(f"حدث خطأ أثناء التحميل: {str(e)}")
 
+# إنشاء التطبيق
 app = Application.builder().token(TOKEN).build()
 app.add_handler(CommandHandler("start", start))
-app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, download_youtube))
+app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, download_video))
 
 if __name__ == "__main__":
     app.run_webhook(
