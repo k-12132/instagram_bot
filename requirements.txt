@@ -1,2 +1,2 @@
-python-telegram-bot
-yt-dlp
+python-telegram-bot[webhooks]==22.3
+yt-dlp==2025.9.5
