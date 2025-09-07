@@ -1,8 +1,14 @@
 import os
 import yt_dlp
+from urllib.parse import quote_plus
 from telegram import Update
 from telegram.ext import Application, CommandHandler, MessageHandler, ContextTypes, filters
-from urllib.parse import quote_plus
+from starlette.applications import Starlette
+from starlette.staticfiles import StaticFiles
+from starlette.middleware import Middleware
+from starlette.middleware.cors import CORSMiddleware
+from threading import Thread
+import uvicorn
 
 # حل مشكلة imghdr في بعض البيئات
 try:
@@ -15,35 +21,42 @@ except ModuleNotFoundError:
 TOKEN = os.environ.get("BOT_TOKEN")
 PORT = int(os.environ.get("PORT", 8443))
 HOST = "0.0.0.0"
-WEBHOOK_URL = f"https://{os.environ['RENDER_EXTERNAL_HOSTNAME']}/{TOKEN}"
+EXTERNAL_HOSTNAME = os.environ['RENDER_EXTERNAL_HOSTNAME']
 
 DOWNLOAD_DIR = "downloads"
 os.makedirs(DOWNLOAD_DIR, exist_ok=True)
 
-# أمر البداية
+# Middleware CORS
+middleware = [Middleware(CORSMiddleware, allow_origins=['*'], allow_methods=['*'])]
+
+# تطبيق Starlette لتقديم الملفات الكبيرة
+web_app = Starlette(debug=True, middleware=middleware)
+web_app.mount("/downloads", StaticFiles(directory=DOWNLOAD_DIR), name="downloads")
+
+# --- أوامر البوت ---
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
         "بوت التحميل جاهز ✅\n"
-        "أرسل رابط فيديو من: تيك توك، إنستقرام، أو يوتيوب."
+        "أرسل رابط فيديو من: تيك توك، إنستقرام (عام/خاص/Reels)، أو يوتيوب."
     )
 
-# دالة التحميل مع دعم الفيديوهات الكبيرة
 async def download_video(update: Update, context: ContextTypes.DEFAULT_TYPE):
     url = update.message.text.strip()
     if not url.startswith("http"):
         await update.message.reply_text("الرجاء إرسال رابط فيديو صحيح.")
         return
 
-    await update.message.reply_text("جاري التحميل ... ⏳")
+    await update.message.reply_text("⏳ جاري التحميل ...")
 
     ydl_opts = {
         "format": "best",
         "outtmpl": f"{DOWNLOAD_DIR}/%(title)s.%(ext)s",
         "noplaylist": True,
         "overwrites": True,
-        # لدعم حسابات خاصة على إنستقرام
-        # "username": "INSTAGRAM_USERNAME",
-        # "password": "INSTAGRAM_PASSWORD",
+        # دعم إنستقرام الخاص
+        "username": os.environ.get("IG_USERNAME"),
+        "password": os.environ.get("IG_PASSWORD"),
+        "extract_flat": False,
     }
 
     try:
@@ -54,28 +67,19 @@ async def download_video(update: Update, context: ContextTypes.DEFAULT_TYPE):
         filesize = os.path.getsize(filename)
         if filesize < 50 * 1024 * 1024:
             await update.message.reply_video(video=open(filename, "rb"))
-            os.remove(filename)  # حذف الملف بعد الإرسال
+            os.remove(filename)
         else:
-            # إرسال رابط تنزيل مباشر للمستخدم
-            download_link = f"{os.environ['RENDER_EXTERNAL_HOSTNAME']}/downloads/{quote_plus(os.path.basename(filename))}"
+            download_link = f"https://{EXTERNAL_HOSTNAME}/downloads/{quote_plus(os.path.basename(filename))}"
             await update.message.reply_text(
-                f"تم تحميل الفيديو بنجاح ✅\nحجم الفيديو أكبر من 50MB، يمكن تنزيله من الرابط التالي:\n{download_link}"
+                f"✅ تم تحميل الفيديو بنجاح!\n"
+                f"حجم الفيديو أكبر من 50MB، يمكن تنزيله من الرابط:\n{download_link}"
             )
-            # الملف يبقى على السيرفر ويمكن عمل جدولة لحذفه لاحقًا
 
+    except yt_dlp.utils.DownloadError as e:
+        await update.message.reply_text(
+            f"❌ حدث خطأ أثناء التحميل.\n"
+            f"السبب غالبًا أن الرابط غير عام أو الفيديو خاص. \n"
+            f"تفاصيل: {str(e)}"
+        )
     except Exception as e:
-        await update.message.reply_text(f"حدث خطأ أثناء التحميل: {str(e)}")
-
-# إنشاء التطبيق
-app = Application.builder().token(TOKEN).build()
-app.add_handler(CommandHandler("start", start))
-app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, download_video))
-
-# تشغيل Webhook
-if __name__ == "__main__":
-    app.run_webhook(
-        listen=HOST,
-        port=PORT,
-        url_path=TOKEN,
-        webhook_url=WEBHOOK_URL
-    )
+        await update.message.reply_text(f"❌_
