@@ -2,6 +2,7 @@ import os
 import yt_dlp
 from telegram import Update
 from telegram.ext import Application, CommandHandler, MessageHandler, ContextTypes, filters
+from urllib.parse import quote_plus
 
 # حل مشكلة imghdr في بعض البيئات
 try:
@@ -10,7 +11,7 @@ except ModuleNotFoundError:
     import types, sys
     sys.modules['imghdr'] = types.ModuleType('imghdr')
 
-# المتغيرات البيئة
+# إعدادات البوت
 TOKEN = os.environ.get("BOT_TOKEN")
 PORT = int(os.environ.get("PORT", 8443))
 HOST = "0.0.0.0"
@@ -26,7 +27,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "أرسل رابط فيديو من: تيك توك، إنستقرام، أو يوتيوب."
     )
 
-# دالة التحميل
+# دالة التحميل مع دعم الفيديوهات الكبيرة
 async def download_video(update: Update, context: ContextTypes.DEFAULT_TYPE):
     url = update.message.text.strip()
     if not url.startswith("http"):
@@ -35,13 +36,12 @@ async def download_video(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     await update.message.reply_text("جاري التحميل ... ⏳")
 
-    # إعدادات yt-dlp
     ydl_opts = {
         "format": "best",
         "outtmpl": f"{DOWNLOAD_DIR}/%(title)s.%(ext)s",
         "noplaylist": True,
-        "overwrites": True,  # السماح بالتحميل فوق الملفات القديمة
-        # إذا تريد دعم الحسابات الخاصة على إنستقرام
+        "overwrites": True,
+        # لدعم حسابات خاصة على إنستقرام
         # "username": "INSTAGRAM_USERNAME",
         # "password": "INSTAGRAM_PASSWORD",
     }
@@ -51,15 +51,18 @@ async def download_video(update: Update, context: ContextTypes.DEFAULT_TYPE):
             info = ydl.extract_info(url)
             filename = ydl.prepare_filename(info)
 
-        # إذا الفيديو أقل من 50MB، أرسله مباشرة
-        if os.path.getsize(filename) < 50 * 1024 * 1024:
+        filesize = os.path.getsize(filename)
+        if filesize < 50 * 1024 * 1024:
             await update.message.reply_video(video=open(filename, "rb"))
+            os.remove(filename)  # حذف الملف بعد الإرسال
         else:
+            # إرسال رابط تنزيل مباشر للمستخدم
+            download_link = f"{os.environ['RENDER_EXTERNAL_HOSTNAME']}/downloads/{quote_plus(os.path.basename(filename))}"
             await update.message.reply_text(
-                f"تم تحميل الفيديو: {filename}\n"
-                "لكن الحجم أكبر من 50MB، لا يمكن إرساله مباشرة.\n"
-                "يمكنك تنزيله من السيرفر مباشرة."
+                f"تم تحميل الفيديو بنجاح ✅\nحجم الفيديو أكبر من 50MB، يمكن تنزيله من الرابط التالي:\n{download_link}"
             )
+            # الملف يبقى على السيرفر ويمكن عمل جدولة لحذفه لاحقًا
+
     except Exception as e:
         await update.message.reply_text(f"حدث خطأ أثناء التحميل: {str(e)}")
 
